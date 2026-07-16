@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal — Churn Risk Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef1f5;
+    --panel: #ffffff;
+    --ink: #171a21;
+    --ink-soft: #565d6b;
+    --line: #dde2e9;
+    --accent-danger: #b3261e;
+    --accent-danger-bg: #fce8e6;
+    --accent-warn: #9a5b00;
+    --accent-warn-bg: #fdf1dc;
+    --accent-ok: #0f6b52;
+    --accent-ok-bg: #e1f3ec;
+    --accent-navy: #1c2a4a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  header {
+    background: var(--accent-navy);
+    color: #fff;
+    padding: 28px 36px 24px;
+  }
+  header .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #9fb0d9;
+    margin-bottom: 6px;
+  }
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    margin: 0;
+    color: #b7c2dd;
+    font-size: 14px;
+    max-width: 640px;
+    line-height: 1.5;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .stat {
+    background: var(--panel);
+    padding: 16px 20px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: background 0.15s;
+  }
+  .stat:hover { background: #f6f8fb; }
+  .stat.active { border-color: var(--accent-navy); background: #f2f4f9; }
+  .stat .num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .stat .label {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+  }
+  .stat.s-total .num { color: var(--accent-navy); }
+  .stat.s-risk .num { color: var(--accent-danger); }
+  .stat.s-ok .num { color: var(--accent-ok); }
+
+  main { padding: 24px 36px 60px; max-width: 1180px; margin: 0 auto; }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .toolbar h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    margin: 0;
+    font-weight: 600;
+  }
+  .filter-note {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .filter-note button {
+    border: none;
+    background: none;
+    color: var(--accent-navy);
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    margin-left: 6px;
+  }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+  }
+  tbody tr { border-bottom: 1px solid var(--line); cursor: pointer; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f7f9fc; }
+  tbody td { padding: 12px 14px; font-size: 13.5px; vertical-align: middle; }
+  .acct-name { font-weight: 600; }
+  .acct-id { color: var(--ink-soft); font-size: 11.5px; }
+  .plan-tag {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: #eef1f5;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+
+  .flags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .flag-dot {
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .flag-none { color: var(--accent-ok); font-size: 12px; font-weight: 600; }
+
+  .f-seat { background: var(--accent-warn-bg); color: var(--accent-warn); }
+  .f-engage { background: #e6ecfb; color: #2848b0; }
+  .f-support { background: var(--accent-danger-bg); color: var(--accent-danger); }
+  .f-renewal { background: #fde3e3; color: #a11414; border: 1px solid #a11414; }
+  .f-payment { background: #f3e6fb; color: #6a1fb0; }
+
+  .priority-badge {
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+  .p-urgent { background: var(--accent-danger-bg); color: var(--accent-danger); }
+  .p-elevated { background: var(--accent-warn-bg); color: var(--accent-warn); }
+  .p-healthy { background: var(--accent-ok-bg); color: var(--accent-ok); }
+
+  .detail-row td { background: #f9fafc; padding: 0; }
+  .detail-inner { padding: 16px 22px 20px 22px; display: none; border-top: 1px dashed var(--line); }
+  .detail-inner.open { display: block; }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 14px;
+  }
+  .detail-block h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 0 0 8px;
+  }
+  .metric-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    padding: 4px 0;
+    border-bottom: 1px solid #eceff3;
+  }
+  .metric-line .why {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--ink-soft);
+  }
+  .metric-line.fired .why { color: var(--accent-danger); font-weight: 600; }
+
+  .actions-list { list-style: none; margin: 0; padding: 0; }
+  .actions-list li {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent-navy);
+    padding: 9px 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    border-radius: 2px;
+  }
+  .actions-list li strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent-navy); margin-bottom: 2px; }
+
+  footer {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 36px 40px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  footer button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    background: none;
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--ink-soft);
+  }
+  footer button:hover { border-color: var(--accent-navy); color: var(--accent-navy); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Customer Success — Account Health</div>
+  <h1>Signal</h1>
+  <p>Rule-based churn risk flags for B2B SaaS accounts. An account is flagged if <em>any</em> of five independent signals trip — each maps to a specific, ranked next step rather than a generic "reach out."</p>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<main>
+  <div class="toolbar">
+    <h2>Accounts</h2>
+    <div class="filter-note">Showing <span id="filterLabel">all accounts</span><button id="clearFilter" style="display:none">clear filter</button></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">Account</th>
+        <th style="width:8%">Plan</th>
+        <th style="width:10%">MRR</th>
+        <th style="width:9%">Renews</th>
+        <th style="width:18%">Flags</th>
+        <th style="width:16%">Priority</th>
+        <th style="width:17%">Top Action</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</main>
+
+<footer>
+  <span>18 seeded accounts · stored locally in your browser</span>
+  <button id="resetBtn">Reset demo data</button>
+</footer>
+
+<script>
+// ---------- Seed data ----------
+const SEED_ACCOUNTS = [
+  {id:"ACC-1001", name:"Northwind Logistics", plan:"Enterprise", mrr:8400, renewal_in_days:22, seats_licensed:120, seats_active_30d:38, logins_30:41, logins_prev30:210, open_tickets:1, escalated_90:0, last_login_days_ago:19, payment_fail_90:0},
+  {id:"ACC-1002", name:"Fernbank Clinics", plan:"Growth", mrr:2200, renewal_in_days:180, seats_licensed:25, seats_active_30d:22, logins_30:180, logins_prev30:170, open_tickets:0, escalated_90:0, last_login_days_ago:1, payment_fail_90:0},
+  {id:"ACC-1003", name:"Ridgeline Freight Co", plan:"Growth", mrr:3100, renewal_in_days:14, seats_licensed:40, seats_active_30d:19, logins_30:95, logins_prev30:100, open_tickets:0, escalated_90:0, last_login_days_ago:22, payment_fail_90:0},
+  {id:"ACC-1004", name:"Solace Health Group", plan:"Enterprise", mrr:11200, renewal_in_days:95, seats_licensed:200, seats_active_30d:160, logins_30:900, logins_prev30:880, open_tickets:4, escalated_90:3, last_login_days_ago:2, payment_fail_90:0},
+  {id:"ACC-1005", name:"Cobalt Retail Systems", plan:"Starter", mrr:450, renewal_in_days:40, seats_licensed:5, seats_active_30d:1, logins_30:6, logins_prev30:40, open_tickets:0, escalated_90:0, last_login_days_ago:18, payment_fail_90:1},
+  {id:"ACC-1006", name:"Harrow & Vine", plan:"Starter", mrr:390, renewal_in_days:210, seats_licensed:8, seats_active_30d:7, logins_30:55, logins_prev30:60, open_tickets:0, escalated_90:0, last_login_days_ago:0, payment_fail_90:0},
+  {id:"ACC-1007", name:"Ashfield Manufacturing", plan:"Enterprise", mrr:9600, renewal_in_days:8, seats_licensed:150, seats_active_30d:130, logins_30:700, logins_prev30:650, open_tickets:1, escalated_90:0, last_login_days_ago:1, payment_fail_90:0},
+  {id:"ACC-1008", name:"Quietwater Insurance", plan:"Growth", mrr:2750, renewal_in_days:55, seats_licensed:30, seats_active_30d:29, logins_30:210, logins_prev30:60, open_tickets:0, escalated_90:0, last_login_days_ago:0, payment_fail_90:0},
+  {id:"ACC-1009", name:"Brightloop Media", plan:"Starter", mrr:520, renewal_in_days:300, seats_licensed:6, seats_active_30d:2, logins_30:8, logins_prev30:35, open_tickets:1, escalated_90:0, last_login_days_ago:9, payment_fail_90:0},
+  {id:"ACC-1010", name:"Talus Robotics", plan:"Enterprise", mrr:14500, renewal_in_days:5, seats_licensed:180, seats_active_30d:150, logins_30:820, logins_prev30:790, open_tickets:0, escalated_90:0, last_login_days_ago:16, payment_fail_90:0},
+  {id:"ACC-1011", name:"Milltown Cooperative", plan:"Growth", mrr:1900, renewal_in_days:130, seats_licensed:20, seats_active_30d:17, logins_30:140, logins_prev30:130, open_tickets:0, escalated_90:1, last_login_days_ago:3, payment_fail_90:0},
+  {id:"ACC-1012", name:"Verity Legal Partners", plan:"Growth", mrr:3300, renewal_in_days:60, seats_licensed:35, seats_active_30d:12, logins_30:50, logins_prev30:180, open_tickets:3, escalated_90:2, last_login_days_ago:11, payment_fail_90:0},
+  {id:"ACC-1013", name:"Sable & Ash Studio", plan:"Starter", mrr:280, renewal_in_days:400, seats_licensed:4, seats_active_30d:4, logins_30:60, logins_prev30:55, open_tickets:0, escalated_90:0, last_login_days_ago:0, payment_fail_90:0},
+  {id:"ACC-1014", name:"Portland Utility District", plan:"Enterprise", mrr:10800, renewal_in_days:150, seats_licensed:140, seats_active_30d:44, logins_30:230, logins_prev30:600, open_tickets:2, escalated_90:2, last_login_days_ago:4, payment_fail_90:1},
+  {id:"ACC-1015", name:"Kestrel Aviation Parts", plan:"Growth", mrr:2600, renewal_in_days:250, seats_licensed:28, seats_active_30d:25, logins_30:160, logins_prev30:150, open_tickets:0, escalated_90:0, last_login_days_ago:2, payment_fail_90:0},
+  {id:"ACC-1016", name:"Driftwood Hospitality", plan:"Starter", mrr:340, renewal_in_days:20, seats_licensed:6, seats_active_30d:5, logins_30:30, logins_prev30:34, open_tickets:0, escalated_90:0, last_login_days_ago:20, payment_fail_90:0},
+  {id:"ACC-1017", name:"Ironclad Freight Brokers", plan:"Enterprise", mrr:9900, renewal_in_days:170, seats_licensed:100, seats_active_30d:95, logins_30:500, logins_prev30:520, open_tickets:1, escalated_90:0, last_login_days_ago:1, payment_fail_90:0},
+  {id:"ACC-1018", name:"Nettle & Birch Consulting", plan:"Starter", mrr:410, renewal_in_days:45, seats_licensed:5, seats_active_30d:1, logins_30:3, logins_prev30:5, open_tickets:2, escalated_90:1, last_login_days_ago:33, payment_fail_90:1},
+];
+
+// ---------- Rule engine ----------
+// Each rule: id, label, short glyph, css class, evaluator(acct) -> {fired, why}
+const RULES = [
+  {
+    id: "seat", label: "Seat utilization drop", glyph: "SU", cls: "f-seat",
+    evaluate(a) {
+      const util = a.seats_active_30d / a.seats_licensed;
+      return { fired: util < 0.4, why: `${a.seats_active_30d}/${a.seats_licensed} seats active (${Math.round(util*100)}%) — threshold <40%` };
+    },
+    action: "Send usage report + schedule seat right-sizing conversation",
+    weight: 2
+  },
+  {
+    id: "engage", label: "Engagement decline", glyph: "EN", cls: "f-engage",
+    evaluate(a) {
+      const ratio = a.logins_prev30 === 0 ? 1 : a.logins_30 / a.logins_prev30;
+      return { fired: ratio < 0.5, why: `${a.logins_30} logins this month vs ${a.logins_prev30} prior (${Math.round(ratio*100)}%) — threshold <50%` };
+    },
+    action: "Trigger re-engagement email sequence / in-app nudge",
+    weight: 2
+  },
+  {
+    id: "support", label: "Support friction spike", glyph: "SF", cls: "f-support",
+    evaluate(a) {
+      const fired = a.escalated_90 >= 2 || a.open_tickets >= 3;
+      return { fired, why: `${a.escalated_90} escalations (90d), ${a.open_tickets} open tickets — threshold ≥2 escalated or ≥3 open` };
+    },
+    action: "Escalate to CSM for a direct call, not automated outreach",
+    weight: 3
+  },
+  {
+    id: "renewal", label: "Renewal-proximity silence", glyph: "RP", cls: "f-renewal",
+    evaluate(a) {
+      const fired = a.renewal_in_days <= 60 && a.last_login_days_ago > 14;
+      return { fired, why: `renews in ${a.renewal_in_days}d, last login ${a.last_login_days_ago}d ago — threshold ≤60d renewal & >14d silent` };
+    },
+    action: "Immediate CSM outreach — highest urgency, treat as save-play",
+    weight: 5
+  },
+  {
+    id: "payment", label: "Payment distress", glyph: "PD", cls: "f-payment",
+    evaluate(a) {
+      return { fired: a.payment_fail_90 >= 1, why: `${a.payment_fail_90} payment failure(s) in last 90d — threshold ≥1` };
+    },
+    action: "Route to billing/AE, not support — different team, different conversation",
+    weight: 4
+  },
+];
+
+function evaluateAccount(a) {
+  const results = RULES.map(r => ({ rule: r, ...r.evaluate(a) }));
+  const fired = results.filter(r => r.fired);
+  return { results, fired };
+}
+
+function priorityFor(fired) {
+  if (fired.some(f => f.rule.id === "renewal") || fired.some(f => f.rule.id === "payment")) {
+    return { label: "Urgent", cls: "p-urgent" };
+  }
+  if (fired.length > 0) return { label: "Elevated", cls: "p-elevated" };
+  return { label: "Healthy", cls: "p-healthy" };
+}
+
+// ---------- Persistence ----------
+const STORAGE_KEY = "churn_dashboard_accounts_v1";
+function loadAccounts() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_ACCOUNTS));
+  return SEED_ACCOUNTS;
+}
+function resetAccounts() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_ACCOUNTS));
+  render();
+}
+
+// ---------- Render ----------
+let activeFilter = null; // rule id, "risk", "ok", or null
+
+function computeAll(accounts) {
+  return accounts.map(a => {
+    const { results, fired } = evaluateAccount(a);
+    const priority = priorityFor(fired);
+    // rank fired flags by rule weight desc for "top action"
+    const ranked = [...fired].sort((x, y) => y.rule.weight - x.rule.weight);
+    return { account: a, results, fired, priority, ranked };
+  });
+}
+
+function render() {
+  const accounts = loadAccounts();
+  const computed = computeAll(accounts);
+
+  const totalCount = computed.length;
+  const riskCount = computed.filter(c => c.fired.length > 0).length;
+  const okCount = totalCount - riskCount;
+
+  const statsEl = document.getElementById("stats");
+  const ruleCounts = RULES.map(r => ({
+    rule: r,
+    count: computed.filter(c => c.fired.some(f => f.rule.id === r.id)).length
+  }));
+
+  statsEl.innerHTML = `
+    <div class="stat s-total" data-filter="all"><div class="num">${totalCount}</div><div class="label">Total accounts</div></div>
+    <div class="stat s-risk" data-filter="risk"><div class="num">${riskCount}</div><div class="label">Flagged at risk</div></div>
+    <div class="stat s-ok" data-filter="ok"><div class="num">${okCount}</div><div class="label">Healthy</div></div>
+    ${ruleCounts.map(rc => `
+      <div class="stat" data-filter="${rc.rule.id}">
+        <div class="num" style="color:${getComputedStyle(document.documentElement).getPropertyValue('--ink')}">${rc.count}</div>
+        <div class="label">${rc.rule.label}</div>
+      </div>
+    `).join("")}
+  `;
+
+  statsEl.querySelectorAll(".stat").forEach(el => {
+    el.addEventListener("click", () => {
+      const f = el.getAttribute("data-filter");
+      activeFilter = f === "all" ? null : f;
+      render();
+    });
+    if ((activeFilter === null && el.dataset.filter === "all") || el.dataset.filter === activeFilter) {
+      el.classList.add("active");
+    }
+  });
+
+  let filtered = computed;
+  let filterLabelText = "all accounts";
+  if (activeFilter === "risk") { filtered = computed.filter(c => c.fired.length > 0); filterLabelText = "flagged at risk"; }
+  else if (activeFilter === "ok") { filtered = computed.filter(c => c.fired.length === 0); filterLabelText = "healthy accounts"; }
+  else if (activeFilter) {
+    const r = RULES.find(r => r.id === activeFilter);
+    filtered = computed.filter(c => c.fired.some(f => f.rule.id === activeFilter));
+    filterLabelText = `flagged: ${r.label}`;
+  }
+  document.getElementById("filterLabel").textContent = filterLabelText;
+  document.getElementById("clearFilter").style.display = activeFilter ? "inline" : "none";
+
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+  filtered.forEach(c => {
+    const a = c.account;
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>
+        <div class="acct-name">${a.name}</div>
+        <div class="acct-id mono">${a.id}</div>
+      </td>
+      <td><span class="plan-tag">${a.plan}</span></td>
+      <td class="mono">$${a.mrr.toLocaleString()}</td>
+      <td class="mono">${a.renewal_in_days}d</td>
+      <td>
+        <div class="flags">
+          ${c.fired.length === 0
+            ? `<span class="flag-none">— none —</span>`
+            : c.fired.map(f => `<span class="flag-dot ${f.rule.cls}" title="${f.rule.label}">${f.rule.glyph}</span>`).join("")}
+        </div>
+      </td>
+      <td><span class="priority-badge ${c.priority.cls}">${c.priority.label}</span></td>
+      <td style="font-size:12.5px">${c.ranked.length ? c.ranked[0].rule.action : "No action needed"}</td>
+    `;
+    row.addEventListener("click", () => toggleDetail(row, c));
+    tbody.appendChild(row);
+
+    const detailRow = document.createElement("tr");
+    detailRow.className = "detail-row";
+    detailRow.innerHTML = `
+      <td colspan="7">
+        <div class="detail-inner">
+          <div class="detail-grid">
+            <div class="detail-block">
+              <h4>Signal breakdown</h4>
+              ${c.results.map(r => `
+                <div class="metric-line ${r.fired ? 'fired' : ''}">
+                  <span>${r.rule.label}</span>
+                  <span class="why">${r.why}</span>
+                </div>
+              `).join("")}
+            </div>
+            <div class="detail-block">
+              <h4>Recommended next step${c.ranked.length > 1 ? "s (ranked)" : ""}</h4>
+              ${c.ranked.length === 0
+                ? `<div style="font-size:13px;color:var(--accent-ok)">No flags fired — no action needed.</div>`
+                : `<ul class="actions-list">${c.ranked.map(f => `<li><strong>${f.rule.label}</strong>${f.rule.action}</li>`).join("")}</ul>`}
+            </div>
+          </div>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(detailRow);
+  });
+
+  document.getElementById("clearFilter").onclick = () => { activeFilter = null; render(); };
+}
+
+function toggleDetail(row, computedRow) {
+  const detailInner = row.nextSibling.querySelector(".detail-inner");
+  detailInner.classList.toggle("open");
+}
+
+document.getElementById("resetBtn").addEventListener("click", resetAccounts);
+
+render();
+</script>
+</body>
+</html>
